@@ -46,7 +46,7 @@
 <li><p>In generation mode: it will automatically generate corrupted or unexpected files and it will try to crash a given program. </p></li>
 </ul>
 
-<p>Neural-Fuzzer is powered by <a href="http://keras.io">keras</a> and it is similar to <a href="https://github.com/karpathy/char-rnn">rnn-char</a> and other techniques in sequence prediction.</p>
+<p>Neural-Fuzzer is open-source (GPL3), powered by <a href="http://keras.io">keras</a> and it is similar to <a href="https://github.com/karpathy/char-rnn">rnn-char</a> and other techniques in sequence prediction.</p>
 
 <h2>
 <a id="features" class="anchor" href="#features" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Features</h2>
@@ -67,6 +67,11 @@ $ git clone <a href="https://github.com/CIFASIS/neural-fuzzer/">https://github.c
 </li>
 <li>... </li>
 </ol>
+
+<p>To generate files from a pre-trained generator:</p>
+
+<pre><code>$ ./neural-fuzzer.py generator.ltsm seeds "prog -arg1 -arg2 @@" --gen
+</code></pre>
 
 <h2>
 <a id="pre-trained-generators" class="anchor" href="#pre-trained-generators" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Pre-trained generators</h2>
