@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-''' xxx '''
+''' TODO '''
 
 from __future__ import print_function
 from keras.models import Sequential
@@ -49,12 +49,20 @@ def read_seeds(seeds, nsamples):
 def recall(model, char_indices, indices_char, data, testdirs, filename, maxlen, maxgenlen):
 
     f = open(filename, "w+")
+    f.write(data)
+
+    #if len(data) < maxlen:
+    #  data = "".join(map(chr, list(np.random.random_integers(0,255,maxlen-len(data)))  )) + data
+    #  data = "".join(map(chr, [0]*(maxlen-len(data))  )) + data
+
+    #print ("Using",data,"as input.")
+
     generated = ''
     sentence = data
     generated += sentence
 
-    f.write(generated)
     gensize = random.randint(maxgenlen / 2, maxgenlen)
+    model.reset_states()
 
     for i in range(gensize):
         x = np.zeros((1, maxlen, len(char_indices)))
@@ -76,9 +84,9 @@ def recall(model, char_indices, indices_char, data, testdirs, filename, maxlen, 
 def define_model(input_dim, output_dim):
 
     model = Sequential()
-    model.add(LSTM(512, return_sequences=True, input_shape=input_dim))
+    model.add(LSTM(32, return_sequences=True, input_shape=input_dim))
     model.add(Dropout(0.2))
-    model.add(LSTM(512, return_sequences=False))
+    model.add(LSTM(32, return_sequences=False))
     model.add(Dropout(0.2))
     model.add(Dense(output_dim))
     model.add(Activation('softmax'))
@@ -142,9 +150,11 @@ if __name__ == "__main__":
         model.load_weights(file_model)
         model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
 
-        for iteration in range(0,100):
-            for diversity in [x / 100.0 for x in range(1,150)]:
-                print('.', end="", flush=True)
+        for iteration in range(0,10):
+            for diversity in [x / 100.0 for x in range(1,151,10)]:
+                sys.stdout.write('.')
+                sys.stdout.flush()
+                #print('.', end="")
                 filename = "test/gen-"+str(iteration)+"-"+str(diversity)
                 recall(model, char_indices, indices_char, text, "test", filename, maxlen, maxgenlen)
 
@@ -185,11 +195,11 @@ if __name__ == "__main__":
     model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
 
     # train the model, output generated text after each iteration
-    for iteration in range(1, 5):
+    for iteration in range(0, 1):
         #print()
         #print('-' * 50)
         print('Iteration', iteration)
-        model.fit(X, y, batch_size=128, nb_epoch=10)
+        model.fit(X, y, batch_size=128, nb_epoch=5)
 
         if  fixed_start_index:
             start_index = fixed_start_index
@@ -201,6 +211,9 @@ if __name__ == "__main__":
             #print()
             filename = "test/gen-"+str(iteration)+"-"+str(diversity)
             recall(model, char_indices, indices_char, text[start_index: start_index + maxlen], "test", filename, maxlen, maxgenlen)
+
+        #cmd = ""
+        #os.system(cmd)
 
         results = triage(cmd, "test")
         for (k,v) in results.items():
