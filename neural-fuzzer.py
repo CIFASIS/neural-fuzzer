@@ -12,9 +12,10 @@ import numpy as np
 import random
 import pickle
 import os
+import shutil
 import sys
 
-from triage import triage
+from triage import triage, aflcount
 
 def sample(a, temperature=1.0):
     # helper function to sample an index from a probability array
@@ -41,7 +42,11 @@ def read_seeds(seeds, nsamples):
   seeds_text = ""
 
   for filename in all_files:
-    seeds_text = seeds_text + (open(filename).read())
+    tmp = open(filename).read()
+    #if len(tmp) > 512:
+    #    tmp = tmp[:256] + tmp[-256:]
+
+    seeds_text = seeds_text + tmp
     #text = text + "\n\n\n" + x #filter(lambda y: y in string.printable, x).lower()
 
   return seeds_text
@@ -52,7 +57,7 @@ def recall(model, char_indices, indices_char, data, testdirs, filename, maxlen, 
     f.write(data)
 
     #if len(data) < maxlen:
-    #  data = "".join(map(chr, list(np.random.random_integers(0,255,maxlen-len(data)))  )) + data
+    #   data = "".join(map(chr, list(np.random.random_integers(0,255,maxlen-len(data)))  )) + data
     #  data = "".join(map(chr, [0]*(maxlen-len(data))  )) + data
 
     #print ("Using",data,"as input.")
@@ -84,9 +89,9 @@ def recall(model, char_indices, indices_char, data, testdirs, filename, maxlen, 
 def define_model(input_dim, output_dim):
 
     model = Sequential()
-    model.add(LSTM(32, return_sequences=True, input_shape=input_dim))
+    model.add(LSTM(256, return_sequences=True, input_shape=input_dim))
     model.add(Dropout(0.2))
-    model.add(LSTM(32, return_sequences=False))
+    model.add(LSTM(256, return_sequences=False))
     model.add(Dropout(0.2))
     model.add(Dense(output_dim))
     model.add(Activation('softmax'))
@@ -99,13 +104,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='')
     parser.add_argument("model", help="", type=str, default=None)
     parser.add_argument("seeds", help="", type=str, default=None)
-    parser.add_argument("cmd", help="", type=str, default=None)
+    parser.add_argument("--cmd", help="", nargs='+', type=str, default=[])
     #parser.add_argument("-d", help="", type=int, default=5)
     #parser.add_argument("-p", help="", action="store_true", default=False)
 
     #parser.add_argument("--model", type=str,
     #                    help="",
     #                    action="store", default=None)
+    parser.add_argument("--valid-seeds", help="", type=str, default=None)
+
 
     parser.add_argument("--gen",
                         help="Test a model using infile (recall only)",
@@ -115,7 +122,13 @@ if __name__ == "__main__":
                         help="",
                         action="store", default=100)
 
-    parser.add_argument("--n-samples", type=int,
+
+    parser.add_argument("--n-gen-samples", type=int,
+                        help="",
+                        action="store", default=10)
+
+
+    parser.add_argument("--n-train-samples", type=int,
                         help="",
                         action="store", default=sys.maxsize)
 
@@ -129,10 +142,17 @@ if __name__ == "__main__":
     options = parser.parse_args()
     file_model = options.model
     seeds = options.seeds
+    valid_seeds = options.valid_seeds
+
     cmd = options.cmd
+    max_paths = [-1]*len(cmd)
+    #print(cmd)
+    #assert(0)
 
     gen_mode = options.gen
-    nsamples = options.n_samples
+    n_train_samples = options.n_train_samples
+    n_gen_samples = options.n_gen_samples
+
     maxgenlen = options.max_gen_size
     fixed_start_index = options.start_index
 
@@ -141,25 +161,38 @@ if __name__ == "__main__":
 
     #assert(0)
 
-    text = read_seeds(seeds, nsamples)
-    maxlen = 20
+    text = read_seeds(seeds, n_train_samples)
+    if valid_seeds is not None:
+        valid_text = read_seeds(valid_seeds, sys.maxsize)
+    else:
+        valid_text = text
 
+    maxlen = 60
+    max_rand = len(text) - maxlen - 1
+    
+    
     if gen_mode:
         (char_indices, indices_char) = pickle.load(open(file_model+".map","r"))
         model = define_model((maxlen, len(char_indices)), len(char_indices))
         model.load_weights(file_model)
         model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
 
-        for iteration in range(0,10):
-            for diversity in [x / 100.0 for x in range(1,151,10)]:
+        for iteration in range(0,n_gen_samples):
+            for diversity in [x / 10.0 for x in range(1,20)]:
                 sys.stdout.write('.')
                 sys.stdout.flush()
                 #print('.', end="")
-                filename = "test/gen-"+str(iteration)+"-"+str(diversity)
-                recall(model, char_indices, indices_char, text, "test", filename, maxlen, maxgenlen)
+                if fixed_start_index is not None:
+                    start_index = fixed_start_index
+                else:
+                    start_index = random.randint(0, max_rand)
 
-        print(triage(cmd, "test"))
+                filename = "test/gen-"+str(iteration)+"-"+str(diversity)
+                recall(model, char_indices, indices_char, text[start_index: start_index + maxlen], "test", filename, maxlen, maxgenlen)
+
+        #print(test(cmd, "test"))
         sys.exit(0)
+    
 
     print('corpus length:', len(text))
 
@@ -174,8 +207,12 @@ if __name__ == "__main__":
     sentences = []
     next_chars = []
     for i in range(0, len(text) - maxlen, step):
-        sentences.append(text[i: i + maxlen])
-        next_chars.append(text[i + maxlen])
+        if random.random() <= 2.0:
+          sentences.append(text[i: i + maxlen])
+          next_chars.append(text[i + maxlen])
+
+    #for s in sample(range(len(
+
     print('nb sequences:', len(sentences))
 
     #assert(0)
@@ -193,34 +230,49 @@ if __name__ == "__main__":
     print('Build model...')
     model = define_model((maxlen, len(chars)), len(chars))
     model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
-
     # train the model, output generated text after each iteration
-    for iteration in range(0, 1):
-        #print()
-        #print('-' * 50)
+    for iteration in range(0, 50):
+
+        # training
         print('Iteration', iteration)
-        model.fit(X, y, batch_size=128, nb_epoch=5)
+        model.fit(X, y, batch_size=128, nb_epoch=1)
+        print('\n')
+        # validation
 
-        if  fixed_start_index:
-            start_index = fixed_start_index
-        else:
-            start_index = random.randint(0, len(text) - maxlen - 1)
+        if os.path.exists("./test"):
+            shutil.rmtree('./test')
 
-        for diversity in [x / 10.0 for x in range(1,10)]:
+        os.makedirs("./test")
 
-            #print()
-            filename = "test/gen-"+str(iteration)+"-"+str(diversity)
-            recall(model, char_indices, indices_char, text[start_index: start_index + maxlen], "test", filename, maxlen, maxgenlen)
+        for rep in range(n_gen_samples):
+            for diversity in [x / 10.0 for x in range(1,10)]:
 
-        #cmd = ""
-        #os.system(cmd)
+                if  fixed_start_index is not None:
+                    start_index = fixed_start_index
+                else:
+                    start_index = random.randint(0, max_rand)
 
-        results = triage(cmd, "test")
-        for (k,v) in results.items():
-          if k <> "":
-            print(k,v)
-            assert(0)
+                #print()
+                filename = "test/gen-"+str(rep)+"-"+str(iteration)+"-"+str(diversity)
+                recall(model, char_indices, indices_char, valid_text[start_index: start_index + maxlen], "test", filename, maxlen, maxgenlen)
+
+
+        for index,c in enumerate(cmd):
+            n = aflcount(c, "test")
+            print(c,"->",n)
+            if (n > max_paths[index]):
+                max_paths[index] = n
+                print("Saving weights for",c)
+                filename = str(index)+"-"+file_model
+                pickle.dump((char_indices, indices_char), open(filename+".map","w+"))
+                model.save_weights(filename, overwrite=True)
+                print("Done!")
+
+        #results = triage(cmd, "test")
+        #for (k,v) in results.items():
+        #  if k <> "":
+        #    print(k,v)
+        #    assert(0)
 
     #print(indices_char)
-    pickle.dump((char_indices, indices_char), open(file_model+".map","w+"))
-    model.save_weights(file_model, overwrite=True)
+

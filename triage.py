@@ -53,6 +53,46 @@ if __name__ == "__main__":
     cmd = options.cmd
 """
 
+
+def aflcount(cmd, seeds):
+    cmd = "afl-count -m none -i "+seeds+" -o .afl-traces -- "+cmd
+    #print(cmd)
+    out = subprocess.check_output(cmd, shell=True)
+
+    try:
+      return int(out)
+    except:
+      return -1
+
+def test(cmd, seeds):
+    #print("\n")
+    if seeds is None:
+        os.system(cmd)
+        return
+
+    all_files = []
+
+    for x, y, files in os.walk(seeds):
+        nfiles = len(files)
+        for f in files:
+            f = f.replace("(","\(")
+            f = f.replace(")","\)")
+            f = f.replace("$","\$")
+            f = f.replace(",","\,")
+
+            all_files.append(x + "/".join(y) + "/" + f)
+
+
+    random.shuffle(all_files)
+    nfiles = len(all_files)
+
+    for progress, testcase in enumerate(all_files):
+        prepared_cmd = cmd.split("@@")
+        prepared_cmd = prepared_cmd[0].split(
+            " ") + [testcase] + prepared_cmd[1].split(" ")
+        prepared_cmd = remove_nils(prepared_cmd)
+        os.system(" ".join(prepared_cmd))
+ 
 def triage(cmd, seeds, depth=5, prune=False):
     gdb_cmd = "env -i ASAN_OPTIONS='abort_on_error=1' gdb -batch -ex 'tty /dev/null' -ex run -ex bt 20 --args @@ 2> /dev/null"
     all_files = []
