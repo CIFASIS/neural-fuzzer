@@ -56,15 +56,15 @@ def recall(model, char_indices, indices_char, data, testdirs, filename, maxlen, 
     f = open(filename, "w+")
     f.write(data)
 
-    #if len(data) < maxlen:
-    #   data = "".join(map(chr, list(np.random.random_integers(0,255,maxlen-len(data)))  )) + data
+    if len(data) < maxlen:
+       data = "".join(map(chr, list(np.random.random_integers(0,255,maxlen-len(data)))  )) + data
     #  data = "".join(map(chr, [0]*(maxlen-len(data))  )) + data
 
     #print ("Using",data,"as input.")
 
     generated = ''
     sentence = data
-    generated += sentence
+    #generated += sentence
 
     gensize = random.randint(maxgenlen / 2, maxgenlen)
     model.reset_states()
@@ -81,17 +81,25 @@ def recall(model, char_indices, indices_char, data, testdirs, filename, maxlen, 
         generated += next_char
         sentence = sentence[1:] + next_char
 
-        f.write(next_char)
+        #f.write(next_char)
         #f.flush()
 
+    #for x in generated.split(data):
+    #    print("->",repr(data+x))
+
+    #generated = data + generated.split(data)[0]
+    #print(repr(generated))
+    f.write(generated)
     f.close()
 
 def define_model(input_dim, output_dim):
 
     model = Sequential()
-    model.add(LSTM(256, return_sequences=True, input_shape=input_dim))
+    model.add(LSTM(64, return_sequences=True, input_shape=input_dim))
     model.add(Dropout(0.2))
-    model.add(LSTM(256, return_sequences=False))
+    model.add(LSTM(64, return_sequences=True, input_shape=input_dim))
+    model.add(Dropout(0.2)) 
+    model.add(LSTM(64, return_sequences=False))
     model.add(Dropout(0.2))
     model.add(Dense(output_dim))
     model.add(Activation('softmax'))
@@ -145,8 +153,9 @@ if __name__ == "__main__":
     valid_seeds = options.valid_seeds
 
     cmd = options.cmd
+    test_dir = "./test-"+str(random.random()).replace("0.","")
     max_paths = [-1]*len(cmd)
-    #print(cmd)
+    print("Using",test_dir)
     #assert(0)
 
     gen_mode = options.gen
@@ -167,7 +176,7 @@ if __name__ == "__main__":
     else:
         valid_text = text
 
-    maxlen = 60
+    maxlen = 20
     max_rand = len(text) - maxlen - 1
     
     
@@ -178,19 +187,28 @@ if __name__ == "__main__":
         model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
 
         for iteration in range(0,n_gen_samples):
-            for diversity in [x / 10.0 for x in range(1,20)]:
+            if os.path.exists(test_dir):
+                shutil.rmtree(test_dir)
+
+            os.makedirs(test_dir)
+
+            for diversity in [x / 10.0 for x in [5]]:
                 sys.stdout.write('.')
                 sys.stdout.flush()
-                #print('.', end="")
                 if fixed_start_index is not None:
                     start_index = fixed_start_index
                 else:
                     start_index = random.randint(0, max_rand)
 
-                filename = "test/gen-"+str(iteration)+"-"+str(diversity)
-                recall(model, char_indices, indices_char, text[start_index: start_index + maxlen], "test", filename, maxlen, maxgenlen)
+                filename = test_dir+"/gen-"+str(iteration)+"-"+str(diversity)
+                recall(model, char_indices, indices_char, text[start_index: start_index + maxlen], test_dir, filename, maxlen, maxgenlen)
 
-        #print(test(cmd, "test"))
+            for c in cmd:
+                x = (triage(c, test_dir))
+                if len(x.keys()) > 1 or (not ('' in x.keys())):
+                    print(x)
+                    sys.exit(0)
+
         sys.exit(0)
     
 
@@ -207,9 +225,9 @@ if __name__ == "__main__":
     sentences = []
     next_chars = []
     for i in range(0, len(text) - maxlen, step):
-        if random.random() <= 2.0:
-          sentences.append(text[i: i + maxlen])
-          next_chars.append(text[i + maxlen])
+        #if random.random() <= 2.0:
+        sentences.append(text[i: i + maxlen])
+        next_chars.append(text[i + maxlen])
 
     #for s in sample(range(len(
 
@@ -229,6 +247,8 @@ if __name__ == "__main__":
     # build the model: 2 stacked LSTM
     print('Build model...')
     model = define_model((maxlen, len(chars)), len(chars))
+    #print(model)
+    #print(map(str,model.get_params()))
     model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
     # train the model, output generated text after each iteration
     for iteration in range(0, 50):
@@ -239,10 +259,10 @@ if __name__ == "__main__":
         print('\n')
         # validation
 
-        if os.path.exists("./test"):
-            shutil.rmtree('./test')
+        if os.path.exists(test_dir):
+            shutil.rmtree(test_dir)
 
-        os.makedirs("./test")
+        os.makedirs(test_dir)
 
         for rep in range(n_gen_samples):
             for diversity in [x / 10.0 for x in range(1,10)]:
