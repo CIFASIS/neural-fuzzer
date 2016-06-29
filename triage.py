@@ -67,8 +67,8 @@ def aflcount(cmd, seeds):
 def test(cmd, seeds):
     #print("\n")
     if seeds is None:
-        os.system(cmd)
-        return
+        #os.system(cmd)
+        return subprocess.call(cmd, shell=True)
 
     all_files = []
 

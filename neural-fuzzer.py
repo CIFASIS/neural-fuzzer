@@ -15,12 +15,19 @@ import os
 import shutil
 import sys
 
-from triage import triage, aflcount
+from triage import triage, aflcount, test
 
-def sample(a, temperature=1.0):
+def sample(a, temperature=1.0, inverse=0.01):
     # helper function to sample an index from a probability array
     a = np.log(a) / temperature
     a = np.exp(a) / np.sum(np.exp(a))
+    #if np.random.random() <= inverse: 
+    #     vfunc = np.vectorize(lambda x: 1-x)
+    #    a = vfunc(a)
+    #    a = (1.0/sum(a)) * a 
+    #    #print(a.shape)
+    #    #print("inverted!")
+
     return np.argmax(np.random.multinomial(1, a, 1))
 
 
@@ -51,35 +58,45 @@ def read_seeds(seeds, nsamples):
 
   return seeds_text
 
-def recall(model, char_indices, indices_char, data, testdirs, filename, maxlen, maxgenlen):
+def recall(model, char_indices, indices_char, data, testdirs, filename, maxlen, maxgenlen, batch_size = 128):
 
-    f = open(filename, "w+")
-    f.write(data)
 
-    if len(data) < maxlen:
-       data = "".join(map(chr, list(np.random.random_integers(0,255,maxlen-len(data)))  )) + data
-    #  data = "".join(map(chr, [0]*(maxlen-len(data))  )) + data
+    f = []
+    generated = []
+    sentence = []
 
-    #print ("Using",data,"as input.")
+    for b in range(batch_size):
+      f.append(open(filename+"-"+str(b), "w+"))
+      f[b].write(data)
 
-    generated = ''
-    sentence = data
-    #generated += sentence
+      if len(data) < maxlen:
+         x = "".join(map(chr, list(np.random.random_integers(0,255,maxlen-len(data)))  )) + data
+
+      generated.append('')
+      sentence.append(x)
 
     gensize = random.randint(maxgenlen / 2, maxgenlen)
     model.reset_states()
+   
+    print("Generating..")
 
     for i in range(gensize):
-        x = np.zeros((1, maxlen, len(char_indices)))
-        for t, char in enumerate(sentence):
-            x[0, t, char_indices[char]] = 1.
+        x = np.zeros((batch_size, maxlen, len(char_indices)))
 
-        preds = model.predict(x, verbose=0)[0]
-        next_index = sample(preds, diversity)
-        next_char = indices_char[next_index]
+        for b in range(batch_size):
+            for t, char in enumerate(sentence[b]):
+               x[b, t, char_indices[char]] = 1.
+       
+        #print("Predicting..")
+        preds = model.predict(x, verbose=0)#[0]
+        #print("End of prediction.")
+        
+        for b in range(batch_size):
+            next_index = sample(preds[b], diversity)
+            next_char = indices_char[next_index]
 
-        generated += next_char
-        sentence = sentence[1:] + next_char
+            generated[b] += next_char
+            sentence[b] = sentence[b][1:] + next_char
 
         #f.write(next_char)
         #f.flush()
@@ -89,8 +106,13 @@ def recall(model, char_indices, indices_char, data, testdirs, filename, maxlen, 
 
     #generated = data + generated.split(data)[0]
     #print(repr(generated))
-    f.write(generated)
-    f.close()
+    print("Writting..")
+
+    for b in range(batch_size):
+
+        #print(b,repr(generated[b]))
+        f[b].write(generated[b])
+        f[b].close()
 
 def define_model(input_dim, output_dim):
 
@@ -203,11 +225,17 @@ if __name__ == "__main__":
                 filename = test_dir+"/gen-"+str(iteration)+"-"+str(diversity)
                 recall(model, char_indices, indices_char, text[start_index: start_index + maxlen], test_dir, filename, maxlen, maxgenlen)
 
+            print("Executing..")
             for c in cmd:
-                x = (triage(c, test_dir))
-                if len(x.keys()) > 1 or (not ('' in x.keys())):
-                    print(x)
+                r = test("env -i ASAN_OPTIONS='abort_on_error=1' "+c+" "+test_dir+"/* > /dev/null 2> /dev/null", None)
+                print(r)
+                if (not (r in [0,1])):
+                    print(c," failed?")
                     sys.exit(0)
+                #x = (triage(c, test_dir))
+                #if len(x.keys()) > 1 or (not ('' in x.keys())):
+                #    print(x)
+                #    sys.exit(0)
 
         sys.exit(0)
     
