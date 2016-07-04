@@ -92,10 +92,10 @@ def test(cmd, seeds):
             " ") + [testcase] + prepared_cmd[1].split(" ")
         prepared_cmd = remove_nils(prepared_cmd)
         os.system(" ".join(prepared_cmd))
- 
+
 def triage(cmd, seeds, depth=5, prune=False):
-    gdb_cmd = "env -i ASAN_OPTIONS='abort_on_error=1' gdb -batch -ex 'tty /dev/null' -ex run -ex bt 20 --args @@ 2> /dev/null"
-    #gdb_cmd = "env -i ASAN_OPTIONS='abort_on_error=1' gdb -batch -ex run -ex 'bt 20' --args @@" #2> /dev/null"
+    #gdb_cmd = "env -i ASAN_OPTIONS='abort_on_error=1' gdb -batch -ex 'tty /dev/null' -ex run -ex bt 20 --args @@ 2> /dev/null"
+    gdb_cmd = "env -i ASAN_OPTIONS='abort_on_error=1' gdb -batch -ex run -ex 'bt 20' --args @@ 2> /dev/null"
 
     all_files = []
     dedup_files = dict()

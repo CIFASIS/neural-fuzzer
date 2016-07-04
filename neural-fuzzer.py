@@ -3,10 +3,7 @@
 ''' TODO '''
 
 from __future__ import print_function
-from keras.models import Sequential
-from keras.layers.core import Dense, Activation, Dropout
-from keras.layers.recurrent import LSTM
-from keras.utils.data_utils import get_file
+
 import argparse
 import numpy as np
 import random
@@ -15,6 +12,10 @@ import os
 import shutil
 import sys
 
+from keras.models import Sequential
+from keras.layers.core import Dense, Activation, Dropout
+from keras.layers.recurrent import LSTM
+from keras.utils.data_utils import get_file
 from triage import triage, aflcount, test
 
 def sample(a, temperature=1.0, inverse=0.01):
@@ -58,7 +59,7 @@ def read_seeds(seeds, nsamples):
 
   return seeds_text
 
-def recall(model, char_indices, indices_char, data, testdirs, filename, maxlen, maxgenlen, batch_size = 128):
+def recall(model, char_indices, indices_char, data, testdirs, filename, maxlen, maxgenlen, batch_size = 8):
 
 
     f = []
@@ -66,8 +67,10 @@ def recall(model, char_indices, indices_char, data, testdirs, filename, maxlen, 
     sentence = []
 
     for b in range(batch_size):
-      f.append(open(filename+"-"+str(b), "w+"))
+      fop = open(filename+"-"+str(b), "w")
+      f.append(fop)
       f[b].write(data)
+      f[b].flush()
 
       if len(data) < maxlen:
          x = "".join(map(chr, list(np.random.random_integers(0,255,maxlen-len(data)))  )) + data
@@ -76,21 +79,23 @@ def recall(model, char_indices, indices_char, data, testdirs, filename, maxlen, 
       sentence.append(x)
 
     gensize = random.randint(maxgenlen / 2, maxgenlen)
+    print("Generating a batch of",batch_size,"file(s) of size", gensize, "(temp:",diversity,")",end="")
+
     model.reset_states()
-   
-    print("Generating..")
+    #print("Generating ",)
 
     for i in range(gensize):
+
+        sys.stdout.write('.')
+        sys.stdout.flush()
+
         x = np.zeros((batch_size, maxlen, len(char_indices)))
 
         for b in range(batch_size):
             for t, char in enumerate(sentence[b]):
                x[b, t, char_indices[char]] = 1.
-       
-        #print("Predicting..")
+
         preds = model.predict(x, verbose=0)#[0]
-        #print("End of prediction.")
-        
         for b in range(batch_size):
             next_index = sample(preds[b], diversity)
             next_char = indices_char[next_index]
@@ -98,19 +103,9 @@ def recall(model, char_indices, indices_char, data, testdirs, filename, maxlen, 
             generated[b] += next_char
             sentence[b] = sentence[b][1:] + next_char
 
-        #f.write(next_char)
-        #f.flush()
-
-    #for x in generated.split(data):
-    #    print("->",repr(data+x))
-
-    #generated = data + generated.split(data)[0]
-    #print(repr(generated))
-    print("Writting..")
+    print("")
 
     for b in range(batch_size):
-
-        #print(b,repr(generated[b]))
         f[b].write(generated[b])
         f[b].close()
 
@@ -120,7 +115,7 @@ def define_model(input_dim, output_dim):
     model.add(LSTM(64, return_sequences=True, input_shape=input_dim))
     model.add(Dropout(0.2))
     model.add(LSTM(64, return_sequences=True, input_shape=input_dim))
-    model.add(Dropout(0.2)) 
+    model.add(Dropout(0.2))
     model.add(LSTM(64, return_sequences=False))
     model.add(Dropout(0.2))
     model.add(Dense(output_dim))
@@ -135,27 +130,31 @@ if __name__ == "__main__":
     parser.add_argument("model", help="", type=str, default=None)
     parser.add_argument("seeds", help="", type=str, default=None)
     parser.add_argument("--cmd", help="", nargs='+', type=str, default=[])
+    parser.add_argument("--temp", help="", nargs='+', type=float, default=[0.5])
+
     #parser.add_argument("-d", help="", type=int, default=5)
     #parser.add_argument("-p", help="", action="store_true", default=False)
 
-    #parser.add_argument("--model", type=str,
-    #                    help="",
-    #                    action="store", default=None)
     parser.add_argument("--valid-seeds", help="", type=str, default=None)
 
 
-    parser.add_argument("--gen",
-                        help="Test a model using infile (recall only)",
+    parser.add_argument("--train",
+                        help="",
                         action="store_true", default=False)
+
+    parser.add_argument("--batch-size", type=int,
+                        help="",
+                        action="store", default=8)
+
 
     parser.add_argument("--max-gen-size", type=int,
                         help="",
-                        action="store", default=100)
+                        action="store", default=300)
 
 
     parser.add_argument("--n-gen-samples", type=int,
                         help="",
-                        action="store", default=10)
+                        action="store", default=1)
 
 
     parser.add_argument("--n-train-samples", type=int,
@@ -175,22 +174,21 @@ if __name__ == "__main__":
     valid_seeds = options.valid_seeds
 
     cmd = options.cmd
-    test_dir = "./test-"+str(random.random()).replace("0.","")
+    test_dir = "./gen-"+str(random.random()).replace("0.","")
     max_paths = [-1]*len(cmd)
-    print("Using",test_dir)
-    #assert(0)
+    print("Using",test_dir,"to store the generated files")
 
-    gen_mode = options.gen
+    gen_mode = not options.train
     n_train_samples = options.n_train_samples
     n_gen_samples = options.n_gen_samples
+    batch_size = options.batch_size
 
     maxgenlen = options.max_gen_size
     fixed_start_index = options.start_index
+    temps = options.temp
 
     #depth = options.d
     #prune = options.p
-
-    #assert(0)
 
     text = read_seeds(seeds, n_train_samples)
     if valid_seeds is not None:
@@ -199,46 +197,43 @@ if __name__ == "__main__":
         valid_text = text
 
     maxlen = 20
-    max_rand = len(text) - maxlen - 1
-    
-    
+    max_rand = max(0,len(text) - maxlen - 1)
+
+
     if gen_mode:
         (char_indices, indices_char) = pickle.load(open(file_model+".map","r"))
         model = define_model((maxlen, len(char_indices)), len(char_indices))
         model.load_weights(file_model)
         model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
 
-        for iteration in range(0,n_gen_samples):
-            if os.path.exists(test_dir):
-                shutil.rmtree(test_dir)
-
+        if not os.path.exists(test_dir):
             os.makedirs(test_dir)
 
-            for diversity in [x / 10.0 for x in [5]]:
-                sys.stdout.write('.')
-                sys.stdout.flush()
+        for iteration in range(0,n_gen_samples):
+            for diversity in temps:
                 if fixed_start_index is not None:
                     start_index = fixed_start_index
                 else:
                     start_index = random.randint(0, max_rand)
 
-                filename = test_dir+"/gen-"+str(iteration)+"-"+str(diversity)
-                recall(model, char_indices, indices_char, text[start_index: start_index + maxlen], test_dir, filename, maxlen, maxgenlen)
+                filename = test_dir+"/file-"+str(iteration)+"-"+str(diversity)
+                #print(filename)
+                recall(model, char_indices, indices_char, text[start_index: start_index + maxlen], test_dir, filename, maxlen, maxgenlen, batch_size)
 
-            print("Executing..")
             for c in cmd:
-                r = test("env -i ASAN_OPTIONS='abort_on_error=1' "+c+" "+test_dir+"/* > /dev/null 2> /dev/null", None)
-                print(r)
-                if (not (r in [0,1])):
-                    print(c," failed?")
-                    sys.exit(0)
-                #x = (triage(c, test_dir))
-                #if len(x.keys()) > 1 or (not ('' in x.keys())):
-                #    print(x)
+                print("Executing",c)
+                #r = test("env -i ASAN_OPTIONS='abort_on_error=1' "+c+" "+test_dir+"/* > /dev/null 2> /dev/null", None)
+                #print(r)
+                #if (not (r in [0,1])):
+                #    print(c," failed?")
                 #    sys.exit(0)
+                x = triage(c, test_dir)
+                if len(x.keys()) > 1 or (not ('' in x.keys())):
+                    print(x)
+                    sys.exit(0)
 
         sys.exit(0)
-    
+
 
     print('corpus length:', len(text))
 
@@ -253,16 +248,10 @@ if __name__ == "__main__":
     sentences = []
     next_chars = []
     for i in range(0, len(text) - maxlen, step):
-        #if random.random() <= 2.0:
         sentences.append(text[i: i + maxlen])
         next_chars.append(text[i + maxlen])
 
-    #for s in sample(range(len(
-
-    print('nb sequences:', len(sentences))
-
-    #assert(0)
-
+    print('Number of sequences to gen/train:', len(sentences))
     print('Vectorization...')
     X = np.zeros((len(sentences), maxlen, len(chars)), dtype=np.bool)
     y = np.zeros((len(sentences), len(chars)), dtype=np.bool)
@@ -300,7 +289,6 @@ if __name__ == "__main__":
                 else:
                     start_index = random.randint(0, max_rand)
 
-                #print()
                 filename = "test/gen-"+str(rep)+"-"+str(iteration)+"-"+str(diversity)
                 recall(model, char_indices, indices_char, valid_text[start_index: start_index + maxlen], "test", filename, maxlen, maxgenlen)
 
