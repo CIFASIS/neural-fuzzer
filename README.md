@@ -16,7 +16,7 @@ Neural-Fuzzer is open-source (GPL3), powered by [keras](http://keras.io) and it 
 * [keras](http://keras.io) (automatically installed)
 * [h5py](http://www.h5py.org/) (automatically installed)
 * If you want to execute programs programs and triage crashes, you need to install gdb.
-* If you are going to train your own generator, you need a powerfull GPU.
+* If you are going to train your own file generators, you need a powerfull GPU.
 
 ## Installation
 
@@ -24,7 +24,7 @@ We need install the required libraries. For instance, in Debian/Ubuntu:
 
     # apt-get install python-numpy libhdf5-dev gdb
 
-After that, we can continue with neural-fuzzer:
+After that, we can start installing neural-fuzzer:
 
      $ git clone https://github.com/CIFASIS/neural-fuzzer/
      $ cd neural-fuzzer
@@ -32,9 +32,9 @@ After that, we can continue with neural-fuzzer:
 
 ## Example
 
-### Generation of XML
+### Generation of XML files
 
-First, download the pre-trained generators:
+In order to generate XML, we can use one of the pre-trained XML generators:
 
     $ wget "https://github.com/CIFASIS/neural-fuzzer/releases/download/0.0/0-gen-xml.lstm"
     $ wget "https://github.com/CIFASIS/neural-fuzzer/releases/download/0.0/0-gen-xml.lstm.map"
@@ -60,7 +60,14 @@ The resulting files will be stored in a randomly named directory (e.g gen-449983
 <p><termdef id='dt-encoding'>
 ```
 
-An interesting parameter is the maximum size of the generated file. Another parameter we can use is the temperature parameter which takes a number in range (0, 1] (default = 0.5). As [karphaty explains](https://github.com/karpathy/char-rnn/blob/master/Readme.md), the temperature is dividing the predicted log probabilities before the Softmax, so lower temperature will cause the model to make more likely, but also more boring and conservative predictions. Higher temperatures cause the model to take more chances and increase diversity of results, but at a cost of more mistakes. 
+An interesting parameter is the maximum size of the generated file. Another important parameter the temperature which takes a number
+ in range (0, 1] (default = 0.5). As [karpathy explains](https://github.com/karpathy/char-rnn/blob/master/Readme.md), the temperature is dividing the predicted log probabilities before the Softmax, so lower temperature will cause the model to make more likely, but also more boring and conservative predictions. Higher temperatures cause the model to take more chances and increase diversity of results, but at a cost of more mistakes. 
+
+## Generation and testing of XML parsing programs
+
+Testing and triage of crashes using GDB can be performed using neural-fuzzer. For instance, if we want to test two XML parsing implementations libxml2 and expat:
+
+    $  ./neural-fuzzer.py --max-gen-size 64 0-gen-xml.lstm seeds/ --cmd "/usr/bin/xmllint @@" "/usr/bin/xmlwf @@"
 
 ### Training
 
