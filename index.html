@@ -58,30 +58,34 @@
 </ul>
 
 <h2>
-<a id="getting-started-with-neural-fuzzer" class="anchor" href="#getting-started-with-neural-fuzzer" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Getting started with Neural-Fuzzer</h2>
+<a id="example-generation-of-xml-files" class="anchor" href="#example-generation-of-xml-files" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Example: generation of XML files</h2>
 
-<ol>
-<li>Install the <a href="http://keras.io/#installation">last version of keras</a>.</li>
-<li>Clone our repository:
-$ git clone <a href="https://github.com/CIFASIS/neural-fuzzer/">https://github.com/CIFASIS/neural-fuzzer/</a>
-</li>
-<li>... </li>
-</ol>
+<p>In order to generate XML, we can use one of the pre-trained XML generators:</p>
 
-<p>To generate files from a pre-trained generator:</p>
-
-<pre><code>$ ./neural-fuzzer.py generator.ltsm seeds "prog -arg1 -arg2 @@" --gen
+<pre><code>$ wget "https://github.com/CIFASIS/neural-fuzzer/releases/download/0.0/0-gen-xml.lstm"
+$ wget "https://github.com/CIFASIS/neural-fuzzer/releases/download/0.0/0-gen-xml.lstm.map"
 </code></pre>
 
-<h2>
-<a id="pre-trained-generators" class="anchor" href="#pre-trained-generators" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Pre-trained generators</h2>
+<p>This generator was trained using <a href="https://www.w3.org/XML/Test/">the XML Conformance Test Suite</a> (more generators are available <a href="https://github.com/CIFASIS/neural-fuzzer/releases">here</a>)</p>
 
-<ul>
-<li>Jpeg</li>
-<li>Png</li>
-<li>Xml</li>
-<li>Pdf?</li>
-</ul>
+<p>Then, we need a seed to start the generation. For instance, to use '&gt;'</p>
+
+<pre><code>$ mkdir seeds
+$ printf "&gt;" &gt; seeds/input.xml
+</code></pre>
+
+<p>Finally, we can start producing some random xmls using the generators:</p>
+
+<pre><code>$  ./neural-fuzzer.py --max-gen-size 64 0-gen-xml.lstm seeds/
+  Using Theano backend.
+  Using ./gen-449983086021 to store the generated files
+  Generating a batch of 8 file(s) of size 35 (temp: 0.5 )................................... 
+</code></pre>
+
+<p>The resulting files will be stored in a randomly named directory (e.g gen-449983086021). It is faster to generate files in a batch, instead of one by one (you can experiment with different batch sizes). In this case, one of the files we obtained is this one:</p>
+
+<div class="highlight highlight-text-xml"><pre>&gt;&lt;/<span class="pl-ent">p</span>&gt;
+&lt;<span class="pl-ent">p</span>&gt;&lt;<span class="pl-ent">termdef</span> <span class="pl-e">id</span>=<span class="pl-s"><span class="pl-pds">'</span>dt-encoding<span class="pl-pds">'</span></span>&gt;</pre></div>
 
 <h2>
 <a id="authors" class="anchor" href="#authors" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Authors</h2>
